@@ -444,6 +444,8 @@ vertex_t mesh[8] = {
 	{ {  1,  1, -1, 1 }, { 1, 0 }, { 0.2f, 1.0f, 0.3f }, 1 },
 };
 
+int meshIndexes[] = {0,1,2,2,3,0,  4,5,6,6,7,4, 0,4,5,5,1,0,  1,5,6,6,2,1,  2,6,7,7,3,2,  3,7,4,4,0,3};
+
 void draw_plane(device_t *device, int a, int b, int c, int d) {
 	vertex_t p1 = mesh[a], p2 = mesh[b], p3 = mesh[c], p4 = mesh[d];
 	p1.tc.u = 0, p1.tc.v = 0, p2.tc.u = 0, p2.tc.v = 1;
@@ -457,12 +459,19 @@ void draw_box(device_t *device, float theta) {
 	matrix_set_rotate(&m, -1, -0.5, 1, theta);
 	device->transform.world = m;
 	transform_update(&device->transform);
+	/*
 	draw_plane(device, 0, 1, 2, 3);
 	draw_plane(device, 4, 5, 6, 7);
 	draw_plane(device, 0, 4, 5, 1);
 	draw_plane(device, 1, 5, 6, 2);
 	draw_plane(device, 2, 6, 7, 3);
 	draw_plane(device, 3, 7, 4, 0);
+	*/
+	int cnt = sizeof(meshIndexes)/sizeof(int);
+	for (int i = 0; i < cnt; i+=3) {
+		vertex_t p1 = mesh[meshIndexes[i]], p2 = mesh[meshIndexes[i+1]], p3 = mesh[meshIndexes[i+2]];
+		device_draw_primitive(device, &p1, &p2, &p3);
+	}
 }
 
 void camera_at_zero(device_t *device, float x, float y, float z) {
