@@ -1,3 +1,6 @@
+#ifndef __GMATH_H__
+#define __GMATH_H__
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -65,9 +68,6 @@ void matrix_set_lookat(matrix_t *m, const vector_t *eye, const vector_t *at, con
 // D3DXMatrixPerspectiveFovLH
 void matrix_set_perspective(matrix_t *m, float fovy, float aspect, float zn, float zf);
 
-
-
-
 // 矩阵更新，计算 transform = world * view * projection
 void transform_update(transform_t *ts);
 // 初始化，设置屏幕长宽
@@ -79,3 +79,5 @@ void transform_apply(const transform_t *ts, vector_t *y, const vector_t *x);
 int transform_check_cvv(const vector_t *v);
 // 归一化，得到屏幕坐标
 void transform_homogenize(const transform_t *ts, vector_t *y, const vector_t *x);
+
+#endif
