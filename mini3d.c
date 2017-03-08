@@ -22,285 +22,12 @@
 #include <windows.h>
 #include <tchar.h>
 
+#include "gmath.h"
 typedef unsigned int IUINT32;
 
-//=====================================================================
-// æ•°å­¦åº“ï¼šæ­¤éƒ¨åˆ†åº”è¯¥ä¸ç”¨è¯¦è§£ï¼Œç†Ÿæ‚‰ D3D çŸ©é˜µå˜æ¢å³å¯
-//=====================================================================
-typedef struct { float m[4][4]; } matrix_t;
-typedef struct { float x, y, z, w; } vector_t;
-typedef vector_t point_t;
-
-int CMID(int x, int min, int max) { return (x < min)? min : ((x > max)? max : x); }
-
-// è®¡ç®—æ’å€¼ï¼št ä¸º [0, 1] ä¹‹é—´çš„æ•°å€¼
-float interp(float x1, float x2, float t) { return x1 + (x2 - x1) * t; }
-
-// | v |
-float vector_length(const vector_t *v) {
-	float sq = v->x * v->x + v->y * v->y + v->z * v->z;
-	return (float)sqrt(sq);
-}
-
-// z = x + y
-void vector_add(vector_t *z, const vector_t *x, const vector_t *y) {
-	z->x = x->x + y->x;
-	z->y = x->y + y->y;
-	z->z = x->z + y->z;
-	z->w = 1.0;
-}
-
-// z = x - y
-void vector_sub(vector_t *z, const vector_t *x, const vector_t *y) {
-	z->x = x->x - y->x;
-	z->y = x->y - y->y;
-	z->z = x->z - y->z;
-	z->w = 1.0;
-}
-
-// çŸ¢é‡ç‚¹ä¹˜
-float vector_dotproduct(const vector_t *x, const vector_t *y) {
-	return x->x * y->x + x->y * y->y + x->z * y->z;
-}
-
-// çŸ¢é‡å‰ä¹˜
-void vector_crossproduct(vector_t *z, const vector_t *x, const vector_t *y) {
-	float m1, m2, m3;
-	m1 = x->y * y->z - x->z * y->y;
-	m2 = x->z * y->x - x->x * y->z;
-	m3 = x->x * y->y - x->y * y->x;
-	z->x = m1;
-	z->y = m2;
-	z->z = m3;
-	z->w = 1.0f;
-}
-
-// çŸ¢é‡æ’å€¼ï¼Œtå–å€¼ [0, 1]
-void vector_interp(vector_t *z, const vector_t *x1, const vector_t *x2, float t) {
-	z->x = interp(x1->x, x2->x, t);
-	z->y = interp(x1->y, x2->y, t);
-	z->z = interp(x1->z, x2->z, t);
-	z->w = 1.0f;
-}
-
-// çŸ¢é‡å½’ä¸€åŒ–
-void vector_normalize(vector_t *v) {
-	float length = vector_length(v);
-	if (length != 0.0f) {
-		float inv = 1.0f / length;
-		v->x *= inv; 
-		v->y *= inv;
-		v->z *= inv;
-	}
-}
-
-// c = a + b
-void matrix_add(matrix_t *c, const matrix_t *a, const matrix_t *b) {
-	int i, j;
-	for (i = 0; i < 4; i++) {
-		for (j = 0; j < 4; j++)
-			c->m[i][j] = a->m[i][j] + b->m[i][j];
-	}
-}
-
-// c = a - b
-void matrix_sub(matrix_t *c, const matrix_t *a, const matrix_t *b) {
-	int i, j;
-	for (i = 0; i < 4; i++) {
-		for (j = 0; j < 4; j++)
-			c->m[i][j] = a->m[i][j] - b->m[i][j];
-	}
-}
-
-// c = a * b
-void matrix_mul(matrix_t *c, const matrix_t *a, const matrix_t *b) {
-	matrix_t z;
-	int i, j;
-	for (i = 0; i < 4; i++) {
-		for (j = 0; j < 4; j++) {
-			z.m[j][i] = (a->m[j][0] * b->m[0][i]) +
-						(a->m[j][1] * b->m[1][i]) +
-						(a->m[j][2] * b->m[2][i]) +
-						(a->m[j][3] * b->m[3][i]);
-		}
-	}
-	c[0] = z;
-}
-
-// c = a * f
-void matrix_scale(matrix_t *c, const matrix_t *a, float f) {
-	int i, j;
-	for (i = 0; i < 4; i++) {
-		for (j = 0; j < 4; j++) 
-			c->m[i][j] = a->m[i][j] * f;
-	}
-}
-
-// y = x * m
-void matrix_apply(vector_t *y, const vector_t *x, const matrix_t *m) {
-	float X = x->x, Y = x->y, Z = x->z, W = x->w;
-	y->x = X * m->m[0][0] + Y * m->m[1][0] + Z * m->m[2][0] + W * m->m[3][0];
-	y->y = X * m->m[0][1] + Y * m->m[1][1] + Z * m->m[2][1] + W * m->m[3][1];
-	y->z = X * m->m[0][2] + Y * m->m[1][2] + Z * m->m[2][2] + W * m->m[3][2];
-	y->w = X * m->m[0][3] + Y * m->m[1][3] + Z * m->m[2][3] + W * m->m[3][3];
-}
-
-void matrix_set_identity(matrix_t *m) {
-	m->m[0][0] = m->m[1][1] = m->m[2][2] = m->m[3][3] = 1.0f; 
-	m->m[0][1] = m->m[0][2] = m->m[0][3] = 0.0f;
-	m->m[1][0] = m->m[1][2] = m->m[1][3] = 0.0f;
-	m->m[2][0] = m->m[2][1] = m->m[2][3] = 0.0f;
-	m->m[3][0] = m->m[3][1] = m->m[3][2] = 0.0f;
-}
-
-void matrix_set_zero(matrix_t *m) {
-	m->m[0][0] = m->m[0][1] = m->m[0][2] = m->m[0][3] = 0.0f;
-	m->m[1][0] = m->m[1][1] = m->m[1][2] = m->m[1][3] = 0.0f;
-	m->m[2][0] = m->m[2][1] = m->m[2][2] = m->m[2][3] = 0.0f;
-	m->m[3][0] = m->m[3][1] = m->m[3][2] = m->m[3][3] = 0.0f;
-}
-
-// å¹³ç§»å˜æ¢
-void matrix_set_translate(matrix_t *m, float x, float y, float z) {
-	matrix_set_identity(m);
-	m->m[3][0] = x;
-	m->m[3][1] = y;
-	m->m[3][2] = z;
-}
-
-// ç¼©æ”¾å˜æ¢
-void matrix_set_scale(matrix_t *m, float x, float y, float z) {
-	matrix_set_identity(m);
-	m->m[0][0] = x;
-	m->m[1][1] = y;
-	m->m[2][2] = z;
-}
-
-// æ—‹è½¬çŸ©é˜µ
-void matrix_set_rotate(matrix_t *m, float x, float y, float z, float theta) {
-	float qsin = (float)sin(theta * 0.5f);
-	float qcos = (float)cos(theta * 0.5f);
-	vector_t vec = { x, y, z, 1.0f };
-	float w = qcos;
-	vector_normalize(&vec);
-	x = vec.x * qsin;
-	y = vec.y * qsin;
-	z = vec.z * qsin;
-	m->m[0][0] = 1 - 2 * y * y - 2 * z * z;
-	m->m[1][0] = 2 * x * y - 2 * w * z;
-	m->m[2][0] = 2 * x * z + 2 * w * y;
-	m->m[0][1] = 2 * x * y + 2 * w * z;
-	m->m[1][1] = 1 - 2 * x * x - 2 * z * z;
-	m->m[2][1] = 2 * y * z - 2 * w * x;
-	m->m[0][2] = 2 * x * z - 2 * w * y;
-	m->m[1][2] = 2 * y * z + 2 * w * x;
-	m->m[2][2] = 1 - 2 * x * x - 2 * y * y;
-	m->m[0][3] = m->m[1][3] = m->m[2][3] = 0.0f;
-	m->m[3][0] = m->m[3][1] = m->m[3][2] = 0.0f;	
-	m->m[3][3] = 1.0f;
-}
-
-// è®¾ç½®æ‘„åƒæœº
-void matrix_set_lookat(matrix_t *m, const vector_t *eye, const vector_t *at, const vector_t *up) {
-	vector_t xaxis, yaxis, zaxis;
-
-	vector_sub(&zaxis, at, eye);
-	vector_normalize(&zaxis);
-	vector_crossproduct(&xaxis, up, &zaxis);
-	vector_normalize(&xaxis);
-	vector_crossproduct(&yaxis, &zaxis, &xaxis);
-
-	m->m[0][0] = xaxis.x;
-	m->m[1][0] = xaxis.y;
-	m->m[2][0] = xaxis.z;
-	m->m[3][0] = -vector_dotproduct(&xaxis, eye);
-
-	m->m[0][1] = yaxis.x;
-	m->m[1][1] = yaxis.y;
-	m->m[2][1] = yaxis.z;
-	m->m[3][1] = -vector_dotproduct(&yaxis, eye);
-
-	m->m[0][2] = zaxis.x;
-	m->m[1][2] = zaxis.y;
-	m->m[2][2] = zaxis.z;
-	m->m[3][2] = -vector_dotproduct(&zaxis, eye);
-	
-	m->m[0][3] = m->m[1][3] = m->m[2][3] = 0.0f;
-	m->m[3][3] = 1.0f;
-}
-
-// D3DXMatrixPerspectiveFovLH
-void matrix_set_perspective(matrix_t *m, float fovy, float aspect, float zn, float zf) {
-	float fax = 1.0f / (float)tan(fovy * 0.5f);
-	matrix_set_zero(m);
-	m->m[0][0] = (float)(fax / aspect);
-	m->m[1][1] = (float)(fax);
-	m->m[2][2] = zf / (zf - zn);
-	m->m[3][2] = - zn * zf / (zf - zn);
-	m->m[2][3] = 1;
-}
-
 
 //=====================================================================
-// åæ ‡å˜æ¢
-//=====================================================================
-typedef struct { 
-	matrix_t world;         // ä¸–ç•Œåæ ‡å˜æ¢
-	matrix_t view;          // æ‘„å½±æœºåæ ‡å˜æ¢
-	matrix_t projection;    // æŠ•å½±å˜æ¢
-	matrix_t transform;     // transform = world * view * projection
-	float w, h;             // å±å¹•å¤§å°
-}	transform_t;
-
-
-// çŸ©é˜µæ›´æ–°ï¼Œè®¡ç®— transform = world * view * projection
-void transform_update(transform_t *ts) {
-	matrix_t m;
-	matrix_mul(&m, &ts->world, &ts->view);
-	matrix_mul(&ts->transform, &m, &ts->projection);
-}
-
-// åˆå§‹åŒ–ï¼Œè®¾ç½®å±å¹•é•¿å®½
-void transform_init(transform_t *ts, int width, int height) {
-	float aspect = (float)width / ((float)height);
-	matrix_set_identity(&ts->world);
-	matrix_set_identity(&ts->view);
-	matrix_set_perspective(&ts->projection, 3.1415926f * 0.5f, aspect, 1.0f, 500.0f);
-	ts->w = (float)width;
-	ts->h = (float)height;
-	transform_update(ts);
-}
-
-// å°†çŸ¢é‡ x è¿›è¡Œ project 
-void transform_apply(const transform_t *ts, vector_t *y, const vector_t *x) {
-	matrix_apply(y, x, &ts->transform);
-}
-
-// æ£€æŸ¥é½æ¬¡åæ ‡åŒ cvv çš„è¾¹ç•Œç”¨äºè§†é”¥è£å‰ª
-int transform_check_cvv(const vector_t *v) {
-	float w = v->w;
-	int check = 0;
-	if (v->z < 0.0f) check |= 1;
-	if (v->z >  w) check |= 2;
-	if (v->x < -w) check |= 4;
-	if (v->x >  w) check |= 8;
-	if (v->y < -w) check |= 16;
-	if (v->y >  w) check |= 32;
-	return check;
-}
-
-// å½’ä¸€åŒ–ï¼Œå¾—åˆ°å±å¹•åæ ‡
-void transform_homogenize(const transform_t *ts, vector_t *y, const vector_t *x) {
-	float rhw = 1.0f / x->w;
-	y->x = (x->x * rhw + 1.0f) * ts->w * 0.5f;
-	y->y = (1.0f - x->y * rhw) * ts->h * 0.5f;
-	y->z = x->z * rhw;
-	y->w = 1.0f;
-}
-
-
-//=====================================================================
-// å‡ ä½•è®¡ç®—ï¼šé¡¶ç‚¹ã€æ‰«æçº¿ã€è¾¹ç¼˜ã€çŸ©å½¢ã€æ­¥é•¿è®¡ç®—
+// ¼¸ºÎ¼ÆËã£º¶¥µã¡¢É¨ÃèÏß¡¢±ßÔµ¡¢¾ØĞÎ¡¢²½³¤¼ÆËã
 //=====================================================================
 typedef struct { float r, g, b; } color_t;
 typedef struct { float u, v; } texcoord_t;
@@ -358,7 +85,7 @@ void vertex_add(vertex_t *y, const vertex_t *x) {
 	y->color.b += x->color.b;
 }
 
-// æ ¹æ®ä¸‰è§’å½¢ç”Ÿæˆ 0-2 ä¸ªæ¢¯å½¢ï¼Œå¹¶ä¸”è¿”å›åˆæ³•æ¢¯å½¢çš„æ•°é‡
+// ¸ù¾İÈı½ÇĞÎÉú³É 0-2 ¸öÌİĞÎ£¬²¢ÇÒ·µ»ØºÏ·¨ÌİĞÎµÄÊıÁ¿
 int trapezoid_init_triangle(trapezoid_t *trap, const vertex_t *p1, 
 	const vertex_t *p2, const vertex_t *p3) {
 	const vertex_t *p;
@@ -423,7 +150,7 @@ int trapezoid_init_triangle(trapezoid_t *trap, const vertex_t *p1,
 	return 2;
 }
 
-// æŒ‰ç…§ Y åæ ‡è®¡ç®—å‡ºå·¦å³ä¸¤æ¡è¾¹çºµåæ ‡ç­‰äº Y çš„é¡¶ç‚¹
+// °´ÕÕ Y ×ø±ê¼ÆËã³ö×óÓÒÁ½Ìõ±ß×İ×ø±êµÈÓÚ Y µÄ¶¥µã
 void trapezoid_edge_interp(trapezoid_t *trap, float y) {
 	float s1 = trap->left.v2.pos.y - trap->left.v1.pos.y;
 	float s2 = trap->right.v2.pos.y - trap->right.v1.pos.y;
@@ -433,7 +160,7 @@ void trapezoid_edge_interp(trapezoid_t *trap, float y) {
 	vertex_interp(&trap->right.v, &trap->right.v1, &trap->right.v2, t2);
 }
 
-// æ ¹æ®å·¦å³ä¸¤è¾¹çš„ç«¯ç‚¹ï¼Œåˆå§‹åŒ–è®¡ç®—å‡ºæ‰«æçº¿çš„èµ·ç‚¹å’Œæ­¥é•¿
+// ¸ù¾İ×óÓÒÁ½±ßµÄ¶Ëµã£¬³õÊ¼»¯¼ÆËã³öÉ¨ÃèÏßµÄÆğµãºÍ²½³¤
 void trapezoid_init_scan_line(const trapezoid_t *trap, scanline_t *scanline, int y) {
 	float width = trap->right.v.pos.x - trap->left.v.pos.x;
 	scanline->x = (int)(trap->left.v.pos.x + 0.5f);
@@ -446,29 +173,29 @@ void trapezoid_init_scan_line(const trapezoid_t *trap, scanline_t *scanline, int
 
 
 //=====================================================================
-// æ¸²æŸ“è®¾å¤‡
+// äÖÈ¾Éè±¸
 //=====================================================================
 typedef struct {
-	transform_t transform;      // åæ ‡å˜æ¢å™¨
-	int width;                  // çª—å£å®½åº¦
-	int height;                 // çª—å£é«˜åº¦
-	IUINT32 **framebuffer;      // åƒç´ ç¼“å­˜ï¼šframebuffer[y] ä»£è¡¨ç¬¬ yè¡Œ
-	float **zbuffer;            // æ·±åº¦ç¼“å­˜ï¼šzbuffer[y] ä¸ºç¬¬ yè¡ŒæŒ‡é’ˆ
-	IUINT32 **texture;          // çº¹ç†ï¼šåŒæ ·æ˜¯æ¯è¡Œç´¢å¼•
-	int tex_width;              // çº¹ç†å®½åº¦
-	int tex_height;             // çº¹ç†é«˜åº¦
-	float max_u;                // çº¹ç†æœ€å¤§å®½åº¦ï¼štex_width - 1
-	float max_v;                // çº¹ç†æœ€å¤§é«˜åº¦ï¼štex_height - 1
-	int render_state;           // æ¸²æŸ“çŠ¶æ€
-	IUINT32 background;         // èƒŒæ™¯é¢œè‰²
-	IUINT32 foreground;         // çº¿æ¡†é¢œè‰²
+	transform_t transform;      // ×ø±ê±ä»»Æ÷
+	int width;                  // ´°¿Ú¿í¶È
+	int height;                 // ´°¿Ú¸ß¶È
+	IUINT32 **framebuffer;      // ÏñËØ»º´æ£ºframebuffer[y] ´ú±íµÚ yĞĞ
+	float **zbuffer;            // Éî¶È»º´æ£ºzbuffer[y] ÎªµÚ yĞĞÖ¸Õë
+	IUINT32 **texture;          // ÎÆÀí£ºÍ¬ÑùÊÇÃ¿ĞĞË÷Òı
+	int tex_width;              // ÎÆÀí¿í¶È
+	int tex_height;             // ÎÆÀí¸ß¶È
+	float max_u;                // ÎÆÀí×î´ó¿í¶È£ºtex_width - 1
+	float max_v;                // ÎÆÀí×î´ó¸ß¶È£ºtex_height - 1
+	int render_state;           // äÖÈ¾×´Ì¬
+	IUINT32 background;         // ±³¾°ÑÕÉ«
+	IUINT32 foreground;         // Ïß¿òÑÕÉ«
 }	device_t;
 
-#define RENDER_STATE_WIREFRAME      1		// æ¸²æŸ“çº¿æ¡†
-#define RENDER_STATE_TEXTURE        2		// æ¸²æŸ“çº¹ç†
-#define RENDER_STATE_COLOR          4		// æ¸²æŸ“é¢œè‰²
+#define RENDER_STATE_WIREFRAME      1		// äÖÈ¾Ïß¿ò
+#define RENDER_STATE_TEXTURE        2		// äÖÈ¾ÎÆÀí
+#define RENDER_STATE_COLOR          4		// äÖÈ¾ÑÕÉ«
 
-// è®¾å¤‡åˆå§‹åŒ–ï¼Œfbä¸ºå¤–éƒ¨å¸§ç¼“å­˜ï¼Œé NULL å°†å¼•ç”¨å¤–éƒ¨å¸§ç¼“å­˜ï¼ˆæ¯è¡Œ 4å­—èŠ‚å¯¹é½ï¼‰
+// Éè±¸³õÊ¼»¯£¬fbÎªÍâ²¿Ö¡»º´æ£¬·Ç NULL ½«ÒıÓÃÍâ²¿Ö¡»º´æ£¨Ã¿ĞĞ 4×Ö½Ú¶ÔÆë£©
 void device_init(device_t *device, int width, int height, void *fb) {
 	int need = sizeof(void*) * (height * 2 + 1024) + width * height * 8;
 	char *ptr = (char*)malloc(need + 64);
@@ -503,7 +230,7 @@ void device_init(device_t *device, int width, int height, void *fb) {
 	device->render_state = RENDER_STATE_WIREFRAME;
 }
 
-// åˆ é™¤è®¾å¤‡
+// É¾³ıÉè±¸
 void device_destroy(device_t *device) {
 	if (device->framebuffer) 
 		free(device->framebuffer);
@@ -512,12 +239,12 @@ void device_destroy(device_t *device) {
 	device->texture = NULL;
 }
 
-// è®¾ç½®å½“å‰çº¹ç†
+// ÉèÖÃµ±Ç°ÎÆÀí
 void device_set_texture(device_t *device, void *bits, long pitch, int w, int h) {
 	char *ptr = (char*)bits;
 	int j;
 	assert(w <= 1024 && h <= 1024);
-	for (j = 0; j < h; ptr += pitch, j++) 	// é‡æ–°è®¡ç®—æ¯è¡Œçº¹ç†çš„æŒ‡é’ˆ
+	for (j = 0; j < h; ptr += pitch, j++) 	// ÖØĞÂ¼ÆËãÃ¿ĞĞÎÆÀíµÄÖ¸Õë
 		device->texture[j] = (IUINT32*)ptr;
 	device->tex_width = w;
 	device->tex_height = h;
@@ -525,7 +252,7 @@ void device_set_texture(device_t *device, void *bits, long pitch, int w, int h) 
 	device->max_v = (float)(h - 1);
 }
 
-// æ¸…ç©º framebuffer å’Œ zbuffer
+// Çå¿Õ framebuffer ºÍ zbuffer
 void device_clear(device_t *device, int mode) {
 	int y, x, height = device->height;
 	for (y = 0; y < device->height; y++) {
@@ -541,14 +268,14 @@ void device_clear(device_t *device, int mode) {
 	}
 }
 
-// ç”»ç‚¹
+// »­µã
 void device_pixel(device_t *device, int x, int y, IUINT32 color) {
 	if (((IUINT32)x) < (IUINT32)device->width && ((IUINT32)y) < (IUINT32)device->height) {
 		device->framebuffer[y][x] = color;
 	}
 }
 
-// ç»˜åˆ¶çº¿æ®µ
+// »æÖÆÏß¶Î
 void device_draw_line(device_t *device, int x1, int y1, int x2, int y2, IUINT32 c) {
 	int x, y, rem = 0;
 	if (x1 == x2 && y1 == y2) {
@@ -592,7 +319,7 @@ void device_draw_line(device_t *device, int x1, int y1, int x2, int y2, IUINT32 
 	}
 }
 
-// æ ¹æ®åæ ‡è¯»å–çº¹ç†
+// ¸ù¾İ×ø±ê¶ÁÈ¡ÎÆÀí
 IUINT32 device_texture_read(const device_t *device, float u, float v) {
 	int x, y;
 	u = u * device->max_u;
@@ -606,10 +333,10 @@ IUINT32 device_texture_read(const device_t *device, float u, float v) {
 
 
 //=====================================================================
-// æ¸²æŸ“å®ç°
+// äÖÈ¾ÊµÏÖ
 //=====================================================================
 
-// ç»˜åˆ¶æ‰«æçº¿
+// »æÖÆÉ¨ÃèÏß
 void device_draw_scanline(device_t *device, scanline_t *scanline) {
 	IUINT32 *framebuffer = device->framebuffer[scanline->y];
 	float *zbuffer = device->zbuffer[scanline->y];
@@ -648,7 +375,7 @@ void device_draw_scanline(device_t *device, scanline_t *scanline) {
 	}
 }
 
-// ä¸»æ¸²æŸ“å‡½æ•°
+// Ö÷äÖÈ¾º¯Êı
 void device_render_trap(device_t *device, trapezoid_t *trap) {
 	scanline_t scanline;
 	int j, top, bottom;
@@ -664,29 +391,29 @@ void device_render_trap(device_t *device, trapezoid_t *trap) {
 	}
 }
 
-// æ ¹æ® render_state ç»˜åˆ¶åŸå§‹ä¸‰è§’å½¢
+// ¸ù¾İ render_state »æÖÆÔ­Ê¼Èı½ÇĞÎ
 void device_draw_primitive(device_t *device, const vertex_t *v1, 
 	const vertex_t *v2, const vertex_t *v3) {
 	point_t p1, p2, p3, c1, c2, c3;
 	int render_state = device->render_state;
 
-	// æŒ‰ç…§ Transform å˜åŒ–
+	// °´ÕÕ Transform ±ä»¯
 	transform_apply(&device->transform, &c1, &v1->pos);
 	transform_apply(&device->transform, &c2, &v2->pos);
 	transform_apply(&device->transform, &c3, &v3->pos);
 
-	// è£å‰ªï¼Œæ³¨æ„æ­¤å¤„å¯ä»¥å®Œå–„ä¸ºå…·ä½“åˆ¤æ–­å‡ ä¸ªç‚¹åœ¨ cvvå†…ä»¥åŠåŒcvvç›¸äº¤å¹³é¢çš„åæ ‡æ¯”ä¾‹
-	// è¿›è¡Œè¿›ä¸€æ­¥ç²¾ç»†è£å‰ªï¼Œå°†ä¸€ä¸ªåˆ†è§£ä¸ºå‡ ä¸ªå®Œå…¨å¤„åœ¨ cvvå†…çš„ä¸‰è§’å½¢
+	// ²Ã¼ô£¬×¢Òâ´Ë´¦¿ÉÒÔÍêÉÆÎª¾ßÌåÅĞ¶Ï¼¸¸öµãÔÚ cvvÄÚÒÔ¼°Í¬cvvÏà½»Æ½ÃæµÄ×ø±ê±ÈÀı
+	// ½øĞĞ½øÒ»²½¾«Ï¸²Ã¼ô£¬½«Ò»¸ö·Ö½âÎª¼¸¸öÍêÈ«´¦ÔÚ cvvÄÚµÄÈı½ÇĞÎ
 	if (transform_check_cvv(&c1) != 0) return;
 	if (transform_check_cvv(&c2) != 0) return;
 	if (transform_check_cvv(&c3) != 0) return;
 
-	// å½’ä¸€åŒ–
+	// ¹éÒ»»¯
 	transform_homogenize(&device->transform, &p1, &c1);
 	transform_homogenize(&device->transform, &p2, &c2);
 	transform_homogenize(&device->transform, &p3, &c3);
 
-	// çº¹ç†æˆ–è€…è‰²å½©ç»˜åˆ¶
+	// ÎÆÀí»òÕßÉ«²Ê»æÖÆ
 	if (render_state & (RENDER_STATE_TEXTURE | RENDER_STATE_COLOR)) {
 		vertex_t t1 = *v1, t2 = *v2, t3 = *v3;
 		trapezoid_t traps[2];
@@ -699,18 +426,18 @@ void device_draw_primitive(device_t *device, const vertex_t *v1,
 		t2.pos.w = c2.w;
 		t3.pos.w = c3.w;
 		
-		vertex_rhw_init(&t1);	// åˆå§‹åŒ– w
-		vertex_rhw_init(&t2);	// åˆå§‹åŒ– w
-		vertex_rhw_init(&t3);	// åˆå§‹åŒ– w
+		vertex_rhw_init(&t1);	// ³õÊ¼»¯ w
+		vertex_rhw_init(&t2);	// ³õÊ¼»¯ w
+		vertex_rhw_init(&t3);	// ³õÊ¼»¯ w
 		
-		// æ‹†åˆ†ä¸‰è§’å½¢ä¸º0-2ä¸ªæ¢¯å½¢ï¼Œå¹¶ä¸”è¿”å›å¯ç”¨æ¢¯å½¢æ•°é‡
+		// ²ğ·ÖÈı½ÇĞÎÎª0-2¸öÌİĞÎ£¬²¢ÇÒ·µ»Ø¿ÉÓÃÌİĞÎÊıÁ¿
 		n = trapezoid_init_triangle(traps, &t1, &t2, &t3);
 
 		if (n >= 1) device_render_trap(device, &traps[0]);
 		if (n >= 2) device_render_trap(device, &traps[1]);
 	}
 
-	if (render_state & RENDER_STATE_WIREFRAME) {		// çº¿æ¡†ç»˜åˆ¶
+	if (render_state & RENDER_STATE_WIREFRAME) {		// Ïß¿ò»æÖÆ
 		device_draw_line(device, (int)p1.x, (int)p1.y, (int)p2.x, (int)p2.y, device->foreground);
 		device_draw_line(device, (int)p1.x, (int)p1.y, (int)p3.x, (int)p3.y, device->foreground);
 		device_draw_line(device, (int)p3.x, (int)p3.y, (int)p2.x, (int)p2.y, device->foreground);
@@ -719,22 +446,22 @@ void device_draw_primitive(device_t *device, const vertex_t *v1,
 
 
 //=====================================================================
-// Win32 çª—å£åŠå›¾å½¢ç»˜åˆ¶ï¼šä¸º device æä¾›ä¸€ä¸ª DibSection çš„ FB
+// Win32 ´°¿Ú¼°Í¼ĞÎ»æÖÆ£ºÎª device Ìá¹©Ò»¸ö DibSection µÄ FB
 //=====================================================================
 int screen_w, screen_h, screen_exit = 0;
 int screen_mx = 0, screen_my = 0, screen_mb = 0;
-int screen_keys[512];	// å½“å‰é”®ç›˜æŒ‰ä¸‹çŠ¶æ€
-static HWND screen_handle = NULL;		// ä¸»çª—å£ HWND
-static HDC screen_dc = NULL;			// é…å¥—çš„ HDC
+int screen_keys[512];	// µ±Ç°¼üÅÌ°´ÏÂ×´Ì¬
+static HWND screen_handle = NULL;		// Ö÷´°¿Ú HWND
+static HDC screen_dc = NULL;			// ÅäÌ×µÄ HDC
 static HBITMAP screen_hb = NULL;		// DIB
-static HBITMAP screen_ob = NULL;		// è€çš„ BITMAP
+static HBITMAP screen_ob = NULL;		// ÀÏµÄ BITMAP
 unsigned char *screen_fb = NULL;		// frame buffer
 long screen_pitch = 0;
 
-int screen_init(int w, int h, const TCHAR *title);	// å±å¹•åˆå§‹åŒ–
-int screen_close(void);								// å…³é—­å±å¹•
-void screen_dispatch(void);							// å¤„ç†æ¶ˆæ¯
-void screen_update(void);							// æ˜¾ç¤º FrameBuffer
+int screen_init(int w, int h, const TCHAR *title);	// ÆÁÄ»³õÊ¼»¯
+int screen_close(void);								// ¹Ø±ÕÆÁÄ»
+void screen_dispatch(void);							// ´¦ÀíÏûÏ¢
+void screen_update(void);							// ÏÔÊ¾ FrameBuffer
 
 // win32 event handler
 static LRESULT screen_events(HWND, UINT, WPARAM, LPARAM);	
@@ -744,7 +471,7 @@ static LRESULT screen_events(HWND, UINT, WPARAM, LPARAM);
 #pragma comment(lib, "user32.lib")
 #endif
 
-// åˆå§‹åŒ–çª—å£å¹¶è®¾ç½®æ ‡é¢˜
+// ³õÊ¼»¯´°¿Ú²¢ÉèÖÃ±êÌâ
 int screen_init(int w, int h, const TCHAR *title) {
 	WNDCLASS wc = { CS_BYTEALIGNCLIENT, (WNDPROC)screen_events, 0, 0, 0, 
 		NULL, NULL, NULL, NULL, _T("SCREEN3.1415926") };
@@ -848,7 +575,7 @@ void screen_update(void) {
 
 
 //=====================================================================
-// ä¸»ç¨‹åº
+// Ö÷³ÌĞò
 //=====================================================================
 vertex_t mesh[8] = {
 	{ {  1, -1,  1, 1 }, { 0, 0 }, { 1.0f, 0.2f, 0.2f }, 1 },
@@ -900,7 +627,7 @@ void init_texture(device_t *device) {
 	device_set_texture(device, texture, 256 * 4, 256, 256);
 }
 
-//çŸ©é˜µè¿ç®—
+//¾ØÕóÔËËã
 void testmath()
 {
 
