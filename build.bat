@@ -1,1 +1,1 @@
-cl mini3d.c arithmetic.c gmath.c
+cl /Zi mini3d.c arithmetic.c gmath.c

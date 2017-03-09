@@ -27,7 +27,6 @@
 
 typedef unsigned int IUINT32;
 
-
 //=====================================================================
 // äÖÈ¾Éè±¸
 //=====================================================================
@@ -445,16 +444,17 @@ vertex_t mesh[8] = {
 };
 
 int meshIndexes[] = {0,1,2,2,3,0,  4,5,6,6,7,4, 0,4,5,5,1,0,  1,5,6,6,2,1,  2,6,7,7,3,2,  3,7,4,4,0,3};
-
+//int meshIndexes[] = {0,4,5,5,1,0};
+/*
 void draw_plane(device_t *device, int a, int b, int c, int d) {
 	vertex_t p1 = mesh[a], p2 = mesh[b], p3 = mesh[c], p4 = mesh[d];
 	p1.tc.u = 0, p1.tc.v = 0, p2.tc.u = 0, p2.tc.v = 1;
 	p3.tc.u = 1, p3.tc.v = 1, p4.tc.u = 1, p4.tc.v = 0;
 	device_draw_primitive(device, &p1, &p2, &p3);
 	device_draw_primitive(device, &p3, &p4, &p1);
-}
+}*/
 
-void draw_box(device_t *device, float theta) {
+void draw_mesh(device_t *device, float theta) {
 	matrix_t m;
 	matrix_set_rotate(&m, -1, -0.5, 1, theta);
 	device->transform.world = m;
@@ -480,16 +480,48 @@ void camera_at_zero(device_t *device, float x, float y, float z) {
 	transform_update(&device->transform);
 }
 
+void read_ppm(char *filename, unsigned char** data, int* w, int* h){
+	char header[128];
+	FILE *pFile;
+	pFile = fopen(filename, "rb");
+	fgets(header, 128, pFile);	
+	printf("header=%s", header);	
+	fgets(header, 128, pFile);	
+	printf("header=%s", header);	
+	fgets(header, 128, pFile);
+	printf("header=%s\n", header);	
+	sscanf(header, "%d %d\n", w, h);
+	printf("w=%d,h=%d\n", *w, *h);
+	int cnt = (*w)*(*h)*3;
+	printf("cnt=%d\n", cnt);
+	*data = (unsigned char*)malloc(cnt);
+	fgets(header, 128, pFile);
+	fread(*data, cnt, 1, pFile);
+	printf("read ok");
+	fclose(pFile);
+}
+
 void init_texture(device_t *device) {
 	static IUINT32 texture[256][256];
+	
+	unsigned char* texturedata;
+	int w=256, h=256;
+
+	read_ppm("texture.ppm", &texturedata, &w, &h);	
+	
+	int pitch = w*3;
 	int i, j;
-	for (j = 0; j < 256; j++) {
-		for (i = 0; i < 256; i++) {
+	for (j = 0; j < h; j++) {
+		for (i = 0; i < w; i++) {
 			int x = i / 32, y = j / 32;
-			texture[j][i] = ((x + y) & 1)? 0xffffff : 0x3fbcef;
+			//texture[j][i] = ((x + y) & 1)? 0xffffff : 0x3fbcef;			
+			unsigned char r =  *(texturedata + pitch*j + i*3);
+			unsigned char g =  *(texturedata + pitch*j + i*3 + 1);
+			unsigned char b =  *(texturedata + pitch*j + i*3 + 2);
+			texture[j][i] = r << 16 | g << 8 | b;
 		}
-	}
-	device_set_texture(device, texture, 256 * 4, 256, 256);
+	}	
+	device_set_texture(device, texture, 256*4, 256, 256);
 }
 
 //¾ØÕóÔËËã
@@ -539,7 +571,7 @@ int main(void)
 			kbhit = 0;
 		}
 
-		draw_box(&device, alpha);
+		draw_mesh(&device, alpha);
 		screen_update();
 		Sleep(1);
 	}
