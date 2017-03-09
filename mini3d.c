@@ -102,13 +102,6 @@ void device_set_texture(device_t *device, void *bits, long pitch, int w, int h) 
 	assert(w <= 1024 && h <= 1024);
 	for (j = 0; j < h; ptr += pitch, j++) 	// 重新计算每行纹理的指针
 		device->texture[j] = (IUINT32*)ptr;
-		
-	//device->texture = (IUINT32**)bits;
-	
-	printf("c=%x", (device->texture)[0][0]);
-	printf("c=%x", (device->texture)[0][1]);
-	printf("c=%x", (device->texture)[200][0]);
-	printf("c=%x", (device->texture)[156][1]);		
 	
 	device->tex_width = w;
 	device->tex_height = h;
