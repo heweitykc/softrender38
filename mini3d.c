@@ -96,11 +96,20 @@ void device_destroy(device_t *device) {
 
 // 设置当前纹理
 void device_set_texture(device_t *device, void *bits, long pitch, int w, int h) {
+	
 	char *ptr = (char*)bits;
 	int j;
 	assert(w <= 1024 && h <= 1024);
 	for (j = 0; j < h; ptr += pitch, j++) 	// 重新计算每行纹理的指针
 		device->texture[j] = (IUINT32*)ptr;
+		
+	//device->texture = (IUINT32**)bits;
+	
+	printf("c=%x", (device->texture)[0][0]);
+	printf("c=%x", (device->texture)[0][1]);
+	printf("c=%x", (device->texture)[200][0]);
+	printf("c=%x", (device->texture)[156][1]);		
+	
 	device->tex_width = w;
 	device->tex_height = h;
 	device->max_u = (float)(w - 1);
@@ -502,26 +511,30 @@ void read_ppm(char *filename, unsigned char** data, int* w, int* h){
 }
 
 void init_texture(device_t *device) {
-	static IUINT32 texture[256][256];
-	
+	//static IUINT32 texture[256][256];
+	IUINT32 *texture;
 	unsigned char* texturedata;
-	int w=256, h=256;
+	int w=0, h=0;
 
-	read_ppm("texture.ppm", &texturedata, &w, &h);	
+	read_ppm("x.ppm", &texturedata, &w, &h);	
+
+    texture = (IUINT32*)malloc(sizeof(IUINT32)*h*w);
 	
-	int pitch = w*3;
-	int i, j;
-	for (j = 0; j < h; j++) {
-		for (i = 0; i < w; i++) {
-			int x = i / 32, y = j / 32;
-			//texture[j][i] = ((x + y) & 1)? 0xffffff : 0x3fbcef;			
-			unsigned char r =  *(texturedata + pitch*j + i*3);
-			unsigned char g =  *(texturedata + pitch*j + i*3 + 1);
-			unsigned char b =  *(texturedata + pitch*j + i*3 + 2);
-			texture[j][i] = (r << 16) | (g << 8) | b;
+	//拷贝数据到纹理数组
+	for (int j = 0; j < h; j++) {
+		int pitch = w*3*j;
+		for (int i = 0; i < w; i++) {
+			//int x = i / 32, y = j / 32;
+			//texture[j][i] = ((x + y) & 1)? 0xffffff : 0x3fbcef;
+			unsigned char r =  *(texturedata + pitch + i*3);
+			unsigned char g =  *(texturedata + pitch + i*3 + 1);
+			unsigned char b =  *(texturedata + pitch + i*3 + 2);
+			texture[j*w + i] = (r << 16) | (g << 8) | b;
 		}
 	}
-	device_set_texture(device, texture, 256*4, 256, 256);
+
+	free(texturedata);
+	device_set_texture(device, texture, w*4, w, h);
 }
 
 //矩阵运算
