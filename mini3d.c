@@ -518,9 +518,9 @@ void init_texture(device_t *device) {
 			unsigned char r =  *(texturedata + pitch*j + i*3);
 			unsigned char g =  *(texturedata + pitch*j + i*3 + 1);
 			unsigned char b =  *(texturedata + pitch*j + i*3 + 2);
-			texture[j][i] = r << 16 | g << 8 | b;
+			texture[j][i] = (r << 16) | (g << 8) | b;
 		}
-	}	
+	}
 	device_set_texture(device, texture, 256*4, 256, 256);
 }
 
